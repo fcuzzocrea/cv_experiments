@@ -86,3 +86,114 @@ def plot_harris_points(image,filtered_coords):
     axis('off')
     show()
     
+def get_descriptors(image, filtered_coords, width):
+    """ For each point return the pixel values around the point using a 
+        window of width 2*width+1 (the points are extracted with such as the
+        minimum distance between two points is greater that width) """
+        
+    # Vettore vuoto per allocare la memoria, conterra le varie "finestre" centrate
+    # nei punti di interessa che ho estrattto con harris
+    desc = []
+    
+    # Per ogni punto di interesse adesso mi estraggo una finestra centrata nel
+    # punto di interesse, e mi conservo tutte le finestre nella lista desc
+    # (E' una lista, non è un vettore.)
+    for coords in filtered_coords:
+        patch = image[coords[0] - width:coords[0] + width + 1, coords[1] - width : coords[1] + width + 1].flatten()
+        # Aggiungo la finestra alla lista dei descrittori
+        desc.append(patch)
+    
+    return desc
+
+def match(desc1, desc2, treshold):
+    """ For each corner point descriptor in the first image, select its match
+        to the second image using norma normalized cross-correlation """
+        
+    # OK, adesso dobbiamo matchare ciò che c'è nella prima immagine a ciò che
+    # c'è nella seconda immagine, e lo facciamo tramite la normalized
+    # cross-correlation function
+    
+    # Numero di pixel nella finestra
+    n = len(desc1[0])
+    
+    # Prealloco la memoria, il
+    d = -ones((len(desc1),len(desc2))) 
+    
+    # Mi calcolo la normalized cross correlation function per ogni finestra
+    # centrata nel punto di interesse
+    for i in range(len(desc1)):
+        for j in range(len(desc2)):
+            I1 = (desc1[i] - mean(desc1[i])) / std(desc1[i])
+            I2 = (desc2[j] - mean(desc2[j])) / std(desc2[j])
+            ncc = sum(I1*I2) / (n - 1)
+            # Qui cerchiamo di non buttare dentro punti troppo vicini
+            if ncc > treshold:
+                d[i,j] = ncc      # altrimenti resta -1
+    
+    # Argsort ritorna gli indici che mi sortano l'array in ordine crescente            
+    ndx = argsort(-d)
+    
+    # Qui si estrapola gli indici della prima colonna sortati
+    matchscores = ndx[:,0]
+    
+    return matchscores
+
+# Adesso lui implemente una funzione che fa il match al contrario (dalla 
+# seconda alla prima) cosi si caccia fuori i punti che hanno un buon match  
+# in tutte e due le direzioni
+    
+def match_twosided(desc1,desc2,treshold):
+    """ Two sided symmetric version of match """
+    
+    # Applico semplicemente le funzioni sopra definite
+    matches_12 = match(desc1, desc2, treshold)
+    matches_21 = match(desc2, desc1, treshold)
+    
+    # Pesca l'elemento 0 da where che gli viene fuori da where, questi sono i
+    # punti  che non matchano
+    ndx_12 = where(matches_12 <=0)[0]
+    
+    # tQuindi togliamo i match non simmetrici sostituendoli con -1
+    for n in ndx_12:
+        if matches_21[matches_12[n]] !=n:
+            matches_12[n] = -1
+            
+    return matches_12
+
+def appendimages(im1,im2):
+    """ Return a new image that appends the two images side-by-side. """
+    
+    # Prepara la memoria
+    rows1 = im1.shape[0]    
+    rows2 = im2.shape[0]
+    
+     # Seleziona le immagini aventi meno colonne e riempie le colonne mancanti 
+     # con gli zeri (cosi che le due immagini abbiano un numero eguale di 
+     # colonne)    
+    if rows1 < rows2:
+        im1 = concatenate((im1,zeros((rows2-rows1,im1.shape[1]))),axis=0)
+    elif rows1 > rows2:
+        im2 = concatenate((im2,zeros((rows1-rows2,im2.shape[1]))),axis=0)
+ 
+     # Ovviamente se nessuno di questi due casi si verifica allora rows1 = rows2
+     # e non è necessario alcun riempimento    
+    return concatenate((im1,im2), axis=1)
+
+def plot_matches(im1,im2,locs1,locs2,matchscores,show_below=True):
+    """ Show a figure with lines joining the accepted matches 
+        input: im1,im2 (images as arrays), locs1,locs2 (feature locations), 
+        matchscores (as output from 'match()'), 
+        show_below (if images should be shown below matches). """
+    
+    im3 = appendimages(im1,im2)
+    if show_below:
+        im3 = vstack((im3,im3))
+    
+    imshow(im3)
+    
+    cols1 = im1.shape[1]
+    for i,m in enumerate(matchscores):
+        if m>0:
+            plot([locs1[i][1],locs2[m][1]+cols1],[locs1[i][0],locs2[m][0]],'c')
+    axis('off')
+    

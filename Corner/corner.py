@@ -194,6 +194,33 @@ contour(harrisim, origin='image')
 axis('equal')
 axis('off')
 show()
-
 filtered_coords = harris.get_harris_points(harrisim, min_dist, treshold)
 harris.plot_harris_points(im,filtered_coords)
+
+# MATCHING
+sigma = 5
+min_dist = 8
+treshold_harris = 0.5
+width = 5
+
+im1 = array(Image.open('image_1.png').convert('L'))
+im2 = array(Image.open('image_2.png').convert('L'))
+
+harrisim1 = harris.compute_harris_response(im1,sigma)
+filtered_coords1 = harris.get_harris_points(harrisim1, min_dist, treshold_harris)
+harris.plot_harris_points(im1,filtered_coords1)
+desc1 = harris.get_descriptors(im1, filtered_coords1, width)
+
+harrisim2 = harris.compute_harris_response(im2,sigma)
+filtered_coords2 = harris.get_harris_points(harrisim2, min_dist, treshold_harris)
+harris.plot_harris_points(im2,filtered_coords2)
+desc2 = harris.get_descriptors(im2, filtered_coords2, width)
+
+treshold_sym = 0.5
+
+matches = harris.match_twosided(desc1,desc2,treshold_sym)
+
+figure()
+gray()
+harris.plot_matches(im1,im2,filtered_coords1,filtered_coords2,matches[:10])
+show()
